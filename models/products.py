@@ -24,11 +24,12 @@ async def create_table_shop_invoice(configfile):
             qty_bottles_delivered INT,
             case_rate NUMERIC(10, 2),
             btl_rate NUMERIC(10, 2),
+            total_bottles_delivered NUMERIC(10, 2),
             total NUMERIC(15, 2),
-            sold_products INT DEFAULT 0 CHECK (sold_products >= 0),
-            sold_price FLOAT DEFAULT 0 CHECK (sold_price >= 0),
             available_products FLOAT DEFAULT 0,
             available_price FLOAT DEFAULT 0,
+            sold_products INT DEFAULT 0 CHECK (sold_products >= 0),
+            sold_price FLOAT DEFAULT 0 CHECK (sold_price >= 0),
             time_last_edited TIMESTAMP
         )
     ''')

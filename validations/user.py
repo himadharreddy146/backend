@@ -343,3 +343,4 @@ class Response(BaseModel):
                                                    example=[
                                                        {"loc": ["body", "price"], "msg": "value is not a valid float",
                                                         "type": "type_error.float"}])
+

@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Request, Header, HTTPException, status, Request, Query, Path, UploadFile
+from decimal import Decimal
+
+from fastapi import APIRouter, Request, Header, HTTPException, status, Request, Query, Path, UploadFile, Form
 from fastapi import Response as resp
 from fastapi.responses import FileResponse, JSONResponse
 import asyncpg
@@ -14,7 +16,7 @@ from validations.user import (Response, AdminRegistration, EditDetails, Validate
 from datetime import datetime, timedelta
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict
+from typing import Dict, Optional
 from pydantic import BaseModel, ValidationError
 import pytz
 import yaml
@@ -212,35 +214,56 @@ async def insert_products(data):
     )
 
     select_query = """
-            SELECT id, qty_cases_delivered, qty_bottles_delivered, total
-            FROM products
-            WHERE brand_number = $1
-            AND brand_name = $2
-            AND product_type = $3
-            AND pack_type = $4
-            AND size_ml = $5
-        """
+        SELECT id, qty_cases_delivered, qty_bottles_delivered, total, available_products, available_price
+        FROM products
+        WHERE brand_number = $1
+        AND brand_name = $2
+        AND product_type = $3
+        AND pack_type = $4
+        AND size_ml = $5
+    """
+
     update_query = """
-            UPDATE products
-            SET
-                qty_cases_delivered = qty_cases_delivered + $1,
-                qty_bottles_delivered = qty_bottles_delivered + $2,
-                total = total + $3,
-                time_last_edited = $4
-            WHERE id = $5
-        """
+        UPDATE products
+        SET
+            qty_cases_delivered = qty_cases_delivered + $1,
+            qty_bottles_delivered = $2,
+            total_bottles_delivered = $3,
+            total = total + $4,
+            available_products = available_products + $5,  -- Update available_products
+            available_price = available_price + $6,        -- Update available_price
+            time_last_edited = $7
+        WHERE id = $8
+    """
+
     insert_query = """
-            INSERT INTO products (
-                sl_no, brand_number, brand_name, product_type, pack_type,
-                size_ml, qty_cases_delivered, qty_bottles_delivered,
-                case_rate, btl_rate, total, time_last_edited
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        """
-    update_bottles_query = """
-            UPDATE products
-            SET qty_bottles_delivered = $1
-            WHERE brand_number = $2
-        """
+        INSERT INTO products (
+            sl_no, brand_number, brand_name, product_type, pack_type,
+            size_ml, qty_cases_delivered, qty_bottles_delivered,
+            total_bottles_delivered, case_rate, btl_rate, total,
+            available_products, available_price, time_last_edited
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+    """
+
+    def calculate_bottles_per_case(product_type, size_ml):
+        """Calculate bottles per case based on product type and size."""
+        if product_type.lower() == "beer":
+            if size_ml == 650:
+                return 12
+            elif size_ml == 350:
+                return 24
+            elif size_ml == 500 and "tin" in product_type.lower():
+                return 24
+        else:
+            size_to_bottles = {
+                375: 24,
+                180: 48,
+                1000: 9,
+                2000: 4,
+                750: 12,
+                90: 96,
+            }
+            return size_to_bottles.get(size_ml, 0)
 
     for record in data:
         try:
@@ -267,6 +290,10 @@ async def insert_products(data):
             total = float(record["Total"])
             time_last_edited = datetime.utcnow()
 
+            bottles_per_case = calculate_bottles_per_case(product_type, size_ml)
+            # Compute total bottles delivered
+            total_bottles_delivered = qty_cases_delivered * bottles_per_case + qty_bottles_delivered
+
             # Check if the product exists
             existing_product = await conn.fetchrow(
                 select_query, brand_number, brand_name, product_type, pack_type, size_ml
@@ -281,7 +308,10 @@ async def insert_products(data):
                     update_query,
                     qty_cases_delivered,
                     qty_bottles_delivered,
+                    total_bottles_delivered,
                     total,
+                    total_bottles_delivered,  # Add total_bottles_delivered to available_products
+                    total,  # Add total to available_price
                     time_last_edited,
                     product_id,
                 )
@@ -299,19 +329,14 @@ async def insert_products(data):
                     size_ml,
                     qty_cases_delivered,
                     qty_bottles_delivered,
-                    case_rate,
-                    btl_rate,
+                    total_bottles_delivered,
+                    case_rate,  # Assign case_rate correctly
+                    btl_rate,  # Assign btl_rate correctly
                     total,
+                    total_bottles_delivered,  # Set available_products to total_bottles_delivered
+                    total,  # Set available_price to total
                     time_last_edited,
                 )
-
-            # Update qty_bottles_delivered if it is 0
-            if qty_bottles_delivered == 0:
-                bottles_per_case = round(case_rate / btl_rate)
-                qty_bottles_delivered = qty_cases_delivered * bottles_per_case
-
-                # Update `qty_bottles_delivered` in the database
-                await conn.execute(update_bottles_query, qty_bottles_delivered, brand_number)
 
         except Exception as e:
             print(f"Error processing record: {record}, Error: {e}")
@@ -398,9 +423,6 @@ async def products_add(file: UploadFile, token: str = Header(...)):
                     VALUES ($1, $2, $3, $4)
                 """
         await conn.execute(query, datestamped_filename, file_data, now, user_id)
-
-        # Clean up the file after processing
-        file_path.unlink()
 
         await conn.close()
         return Response(
@@ -512,6 +534,7 @@ async def get_products(token: str, brand_name: str = None, brand_number: str = N
             detail=None
         )
 
+
 @router.post("/products/sell", response_model=Response, summary="Update sold products.", tags=["Products"])
 async def update_sold_products(brand_number: str, sold_quantity: int, token: str = Header(...)) -> Response:
     try:
@@ -542,7 +565,7 @@ async def update_sold_products(brand_number: str, sold_quantity: int, token: str
 
         # Check if the product exists
         query_check = """
-                    SELECT sold_products, qty_bottles_delivered, btl_rate, available_price, available_products, sl_no
+                    SELECT sold_products, total_bottles_delivered, btl_rate, total, available_price, available_products, id
                     FROM products
                     WHERE brand_number = $1
                 """
@@ -553,8 +576,13 @@ async def update_sold_products(brand_number: str, sold_quantity: int, token: str
                 detail="Product not found."
             )
 
+        # Convert fetched values to Decimal to ensure consistent types
+        current_quantity = product["total_bottles_delivered"] or 0
+        btl_rate =product["btl_rate"] or 0
+        current_sold = product["sold_products"] or 0  # Ensure `sold_products` is treated as 0 if null
+        current_available_price = product["total"] or 0
+
         # Check if the sold quantity exceeds the available quantity
-        current_quantity = product["qty_bottles_delivered"]
         if sold_quantity > current_quantity:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -562,15 +590,17 @@ async def update_sold_products(brand_number: str, sold_quantity: int, token: str
             )
 
         # Update the sold_products column
-        current_sold = product["sold_products"] or 0  # Ensure `sold_products` is treated as 0 if null
-        new_sold_total = current_sold + sold_quantity
-        btl_rate = product["btl_rate"] or 0
-        sold_price = new_sold_total * btl_rate
-        current_available_price =  current_quantity * btl_rate
+        new_sold_total = current_sold + Decimal(sold_quantity)
+        sold_price = new_sold_total * btl_rate  # Calculate the total sold price based on quantity sold
 
-        new_available_price = current_available_price - sold_price
-        current_available_products = product["qty_bottles_delivered"] or 0
-        new_available_products = current_available_products - sold_quantity
+        # Calculate new available price and products
+         # Subtract the sold price from available price
+
+        # **Fix the available_products calculation** by subtracting the sold quantity from the total quantity delivered
+        new_available_products = current_quantity - new_sold_total  # available products = total delivered - sold
+        new_available_price = btl_rate * new_available_products
+        # Ensure available_products doesn't go negative
+        new_available_products = max(new_available_products, 0)
 
         # Update the table
         query_update = """
@@ -593,7 +623,7 @@ async def update_sold_products(brand_number: str, sold_quantity: int, token: str
         # Fetch and order the updated records
         query_ordered = """
             SELECT * FROM products
-            ORDER BY sl_no
+            ORDER BY id
         """
         products = await conn.fetch(query_ordered)
 
@@ -624,3 +654,161 @@ async def update_sold_products(brand_number: str, sold_quantity: int, token: str
 
 
 
+def calculate_bottles_per_case(product_type: str, size_ml: int) -> int:
+    """Calculate bottles per case based on product type and size."""
+    if product_type.lower() == "beer":
+        if size_ml == 650:
+            return 12
+        elif size_ml == 350:
+            return 24
+        elif size_ml == 500 and "tin" in product_type.lower():
+            return 24
+    else:
+        size_to_bottles = {
+            375: 24,
+            180: 48,
+            1000: 9,
+            2000: 4,
+            750: 12,
+            90: 96,
+        }
+        return size_to_bottles.get(size_ml, 0)
+
+
+@router.post("/products/manual", tags=["Products"])
+async def insert_manual_products(
+        token: str = Header(...),
+        sl_no: int = Form(...),
+        brand_number: str = Form(...),
+        brand_name: str = Form(...),
+        product_type: str = Form(...),
+        pack_type: str = Form(...),
+        size_ml: int = Form(...),
+        qty_cases_delivered: int = Form(...),
+        qty_bottles_delivered: int = Form(...),
+        case_rate: float = Form(...),
+        btl_rate: float = Form(...),
+        total: float = Form(...),
+):
+    try:
+        # Validate token
+        loop = asyncio.get_running_loop()
+        user_id = await loop.run_in_executor(ThreadPoolExecutor(), find_user_id_by_token, token)
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid session ID")
+
+        # Calculate derived values
+        bottles_per_case = calculate_bottles_per_case(product_type, size_ml)
+        total_bottles_delivered = qty_cases_delivered * bottles_per_case + qty_bottles_delivered
+        available_products = total_bottles_delivered
+        available_price = total
+
+        # Debug prints for request parameters and derived values
+        print("Received manual product entry:")
+        print(f"sl_no: {sl_no}, brand_number: {brand_number}, brand_name: {brand_name}")
+        print(f"product_type: {product_type}, pack_type: {pack_type}, size_ml: {size_ml}")
+        print(f"qty_cases_delivered: {qty_cases_delivered}, qty_bottles_delivered: {qty_bottles_delivered}")
+        print(f"case_rate: {case_rate}, btl_rate: {btl_rate}, total: {total}")
+        print(f"Calculated bottles_per_case: {bottles_per_case}")
+        print(f"Calculated total_bottles_delivered: {total_bottles_delivered}")
+        print(f"Set available_products: {available_products}, available_price: {available_price}")
+
+        # Connect to the database
+        conn = await asyncpg.connect(
+            user=(base64.b64decode(configfile["database"]["username"])).decode("utf-8"),
+            password=(base64.b64decode(configfile["database"]["password"])).decode("utf-8"),
+            database=(base64.b64decode(configfile["database"]["name"])).decode("utf-8"),
+            host=str(configfile["database"]["host"]),
+            port=str(configfile["database"]["port"])
+        )
+
+        # Check if product exists based on multiple fields
+        select_query = """
+            SELECT id FROM products
+            WHERE brand_number = $1
+              AND brand_name = $2
+              AND product_type = $3
+              AND pack_type = $4
+              AND size_ml = $5
+        """
+        # Normalize string fields for matching
+        existing_product = await conn.fetchrow(
+            select_query,
+            brand_number,
+            brand_name,
+            product_type,
+            pack_type,
+            size_ml
+        )
+        print(
+            f"Select Query Params: {brand_number.strip().lower()}, {brand_name.strip().lower()}, {product_type.strip().lower()}, {pack_type.strip().lower()}, {size_ml}")
+
+        if existing_product:
+            product_id = existing_product["id"]
+            print(f"Product exists (ID: {product_id}). Updating record...")
+
+            # Update query: add the new quantities and totals to the existing ones.
+            update_query = """
+                UPDATE products
+                SET
+                    qty_cases_delivered = qty_cases_delivered + $1,
+                    qty_bottles_delivered = qty_bottles_delivered + $2,
+                    total_bottles_delivered = total_bottles_delivered + $3,
+                    total = total + $4,
+                    available_products = available_products + $5,
+                    available_price = available_price + $6,
+                    time_last_edited = $7
+                WHERE id = $8
+            """
+            print(
+                f"Update Query Params: {qty_cases_delivered}, {qty_bottles_delivered}, {total_bottles_delivered}, {total}, {total_bottles_delivered}, {total}, {datetime.utcnow()}, {product_id}")
+            await conn.execute(
+                update_query,
+                qty_cases_delivered,
+                qty_bottles_delivered,
+                total_bottles_delivered,
+                total,
+                total_bottles_delivered,  # Increase available_products by new total_bottles_delivered
+                total,  # Increase available_price by new total
+                datetime.utcnow(),
+                product_id,
+            )
+        else:
+            print("Product not found. Inserting new record...")
+            insert_query = """
+                INSERT INTO products (
+                    sl_no, brand_number, brand_name, product_type, pack_type,
+                    size_ml, qty_cases_delivered, qty_bottles_delivered,
+                    total_bottles_delivered, case_rate, btl_rate, total,
+                    available_products, available_price, time_last_edited
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP)
+                RETURNING id;
+            """
+            print(
+                f"Insert Query Params: {sl_no}, {brand_number.strip().lower()}, {brand_name.strip().lower()}, {product_type.strip().lower()}, {pack_type.strip().lower()}, {size_ml}, {qty_cases_delivered}, {qty_bottles_delivered}, {total_bottles_delivered}, {case_rate}, {btl_rate}, {total}, {available_products}, {available_price}, {datetime.utcnow()}")
+            result = await conn.fetchrow(
+                insert_query,
+                sl_no,
+                brand_number,
+                brand_name,
+                product_type,
+                pack_type,
+                size_ml,
+                qty_cases_delivered,
+                qty_bottles_delivered,
+                total_bottles_delivered,
+                case_rate,
+                btl_rate,
+                total,
+                available_products,
+                available_price
+            )
+            print(f"Inserted product with ID: {result['id']}")
+
+        await conn.close()
+        return JSONResponse(status_code=201, content={"message": "Product processed successfully"})
+
+    except Exception as e:
+        print(f"Error processing manual product: {e}")
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
