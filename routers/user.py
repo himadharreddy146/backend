@@ -7,7 +7,7 @@ import os
 import json
 from utils.tools import find_country_code, save_user_token, find_user_id_by_token, connect_to_redis, count_records_by_user_id, \
     delete_user_tokens, hash_password, verify_password, deactivate_all_tokens
-from validations.user import (Response, AdminRegistration, EditDetails, ValidateSession, CompleteRegistration, Login, Logout, DeleteAdmin, ChangePassword, EmailRequest)
+from validations.user import (Response, AdminRegistration, Login, Logout)
 from datetime import datetime, timedelta
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
