@@ -1,0 +1,30 @@
+version: 1
+
+#database:
+#  host: "localhost"
+#  port: "5432"
+#  username: "ZmFpdA=="
+#  password: "RmFpdDIwMjQhIQ=="
+#  name: "dGVzdDU="
+
+  # DATABASE_URL = "postgresql://fait:Fait2024!!@localhost:5432/test5"
+  #  postgresql://[username]:[password]@[host]:[port]/[database]
+  # mongodb://fait_modb:Fait2024!!@localhost:27071/"
+
+mongodb:
+  host: "localhost"
+  port: 27017
+  username: "ZmFpdF9tb2Ri"
+  password: "RmFpdDIwMjQhIQ=="
+
+email:
+  email: "no-reply@firstaitutor.com"
+  password: "secure_password"
+
+database:
+  host: "localhost"
+  port: "5432"
+  username: "cG9zdGdyZXM="
+  password: "QFN1bmVlbDEq"
+  name: "cHJvamVjdA=="
+
