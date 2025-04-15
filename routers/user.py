@@ -1,23 +1,13 @@
-from fastapi import APIRouter, Request, Header, HTTPException, status, Request, Query, Path
-from fastapi import Response as resp
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import APIRouter, Header, status
 import asyncpg
-# import aiofiles
 import os
-import json
-from utils.tools import find_country_code, save_user_token, find_user_id_by_token, connect_to_redis, count_records_by_user_id, \
-    delete_user_tokens, hash_password, verify_password, deactivate_all_tokens
-from validations.user import (Response, AdminRegistration, Login, Logout)
-from datetime import datetime, timedelta
+from utils.tools import save_user_token, find_user_id_by_token,delete_user_tokens
+from validations.user import (Response, AdminRegistration,Login, Logout)
+from datetime import datetime
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict
-from pydantic import BaseModel, ValidationError
-import pytz
 import yaml
 import base64
-import bcrypt
-import requests
 
 scriptDir = os.path.dirname(os.path.abspath(__file__))
 configfile = {}
