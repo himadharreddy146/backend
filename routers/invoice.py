@@ -1,41 +1,23 @@
-import io
 
-import pandas as pd
-from fastapi import APIRouter, Request, Header, HTTPException, status, Request, Query, Path
-from fastapi import Response as resp
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-import asyncpg
-# import aiofiles
-import os
-import json
+from fastapi import Header, HTTPException, Query
+from fastapi.responses import JSONResponse
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Table, TableStyle, SimpleDocTemplate, PageBreak, Paragraph
 from reportlab.lib import colors
-
 from reportlab.lib.units import inch
-
-
 from models.creator import configfile
-from utils.tools import find_country_code, save_user_token, find_user_id_by_token, connect_to_redis, count_records_by_user_id, \
-    delete_user_tokens, hash_password, verify_password, deactivate_all_tokens
-from validations.user import (Response, AdminRegistration, EditDetails, ValidateSession, CompleteRegistration, Login, Logout, DeleteAdmin, ChangePassword, EmailRequest)
-from datetime import datetime, timedelta
+from utils.tools import find_user_id_by_token
+from validations.user import Response
+from datetime import datetime
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Optional
-from pydantic import BaseModel, ValidationError
-import pytz
-import yaml
-import base64
-import bcrypt
-import requests
 from fastapi import APIRouter, Response, status
 import asyncpg
 import base64
 import os
 from fastapi.responses import FileResponse
-from pathlib import Path
 
 
 router = APIRouter()
