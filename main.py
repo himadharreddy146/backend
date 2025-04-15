@@ -32,38 +32,38 @@
 #     # This will ensure that the server starts when the script is run
 #     run_server()
 
-from fastapi import FastAPI
 import os
 import asyncpg
-from dotenv import load_dotenv
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI
+from fastapi.encoders import jsonable_encoder
 
-# Load environment variables from .env file if in local development
-load_dotenv()
-
-# Initialize FastAPI app
+# Initialize the FastAPI app
 app = FastAPI()
 
-# Access the environment variables
-DATABASE_URL = os.getenv("DATABASE_URL")  # PostgreSQL Database URL
-SECRET_KEY = os.getenv("SECRET_KEY")  # Secret Key for JWT or encryption
-DEBUG = os.getenv("DEBUG", "False")  # Default to "False" if not set
-
-# Database connection
+# Function to connect to the PostgreSQL database
 async def connect_to_db():
+    # Retrieve the DATABASE_URL from environment variables
+    database_url = os.getenv("DATABASE_URL")
+    
+    # Connect to the PostgreSQL database
+    conn = await asyncpg.connect(dsn=database_url)
+
+    # Query data from the database (for example, getting users)
+    result = await conn.fetch('SELECT * FROM user_table LIMIT 10')
+
+    # Close the connection after the query
+    await conn.close()
+
+    # Since `fetch` returns a list of records (dict-like), we can serialize it
+    return jsonable_encoder(result)
+
+# API endpoint to fetch users
+@app.get("/users")
+async def get_users():
     try:
-        connection = await asyncpg.connect(DATABASE_URL)
-        return connection
+        # Fetch users from the database
+        users = await connect_to_db()
+        return {"users": users}  # Return the serialized data
     except Exception as e:
-        return f"Error: {str(e)}"
-
-@app.get("/")
-async def read_root():
-    # Example usage of environment variables
-    db_connection = await connect_to_db()
-    return {"message": "App is running", "database_connection": db_connection}
-
-@app.get("/secret")
-async def get_secret_key():
-    # Return the secret key (or any other secured data)
-    return {"secret_key": SECRET_KEY}
+        # Handle any errors by returning a message
+        return {"error": str(e)}
