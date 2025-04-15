@@ -4,32 +4,30 @@ import traceback
 import uvicorn
 import asyncpg
 
-# scriptDir = os.path.dirname(os.path.abspath(__file__))
-# sys.path.append(scriptDir)
+# Importing from models
 from models import creator
+
+# Import the app instance from config (Make sure app is defined in config.py)
+from config import app
 
 async def main():
     try:
+        # Create the necessary tables or perform any initial setup
         await creator.create_table()
-        # log.critical(
-        #     "email_not_found",
-        #     "No email was found with this token",
-        #     token="token",
-        #     func="email_info",
-        # )
-        # logging.shutdown()
-        uvicorn.run('config:app', host='127.0.0.1', port=8000, reload=True)
+
+        # Start the uvicorn server directly within this script
+        uvicorn.run(app, host='0.0.0.0', port=8000, reload=True)  # Make sure to pass 'app' directly
     except Exception:
         print(traceback.format_exc())
-
 
 def run_server():
     logging.basicConfig(level=logging.INFO)
     try:
+        # Start the server by running the main async function
         asyncio.run(main())
     except KeyboardInterrupt:
-        print('Bye')
-
+        print('Server stopped gracefully.')
 
 if __name__ == '__main__':
+    # This will ensure that the server starts when the script is run
     run_server()
