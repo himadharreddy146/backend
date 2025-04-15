@@ -1,32 +1,18 @@
 from decimal import Decimal
 
-from fastapi import APIRouter, Request, Header, HTTPException, status, Request, Query, Path, UploadFile, Form
-from fastapi import Response as resp
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import APIRouter,Header, HTTPException, status, UploadFile, Form
+from fastapi.responses import JSONResponse
 import asyncpg
-# import aiofiles
 import os
-import json
-
-from sympy.polys.polyconfig import query
-
-from utils.tools import find_country_code, save_user_token, find_user_id_by_token, connect_to_redis, count_records_by_user_id, \
-    delete_user_tokens, hash_password, verify_password, deactivate_all_tokens
-from validations.user import (Response, AdminRegistration, EditDetails, ValidateSession, CompleteRegistration, Login, Logout, DeleteAdmin, ChangePassword, EmailRequest)
-from datetime import datetime, timedelta
+from utils.tools import find_user_id_by_token
+from validations.user import Response
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Optional
-from pydantic import BaseModel, ValidationError
-import pytz
 import yaml
 import base64
-import bcrypt
-import requests
 import pdfplumber
 import pandas as pd
 import re
-from PyPDF2 import PdfReader
 from pathlib import Path
 from datetime import datetime
 
