@@ -1,35 +1,14 @@
-import asyncio
-import logging
-import traceback
-import uvicorn
-import asyncpg
+from typing import Optional
 
-# scriptDir = os.path.dirname(os.path.abspath(__file__))
-# sys.path.append(scriptDir)
-from models import creator
+from fastapi import FastAPI
 
-async def main():
-    try:
-        await creator.create_table()
-        # log.critical(
-        #     "email_not_found",
-        #     "No email was found with this token",
-        #     token="token",
-        #     func="email_info",
-        # )
-        # logging.shutdown()
-        uvicorn.run('config:app', host='127.0.0.1', port=8000, reload=True)
-    except Exception:
-        print(traceback.format_exc())
+app = FastAPI()
 
 
-def run_server():
-    logging.basicConfig(level=logging.INFO)
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print('Bye')
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
 
-
-if __name__ == '__main__':
-    run_server()
+@app.get("/items/{item_id}")
+def read_item(item_id: int, q: Optional[str] = None):
+    return {"item_id": item_id, "q": q}
