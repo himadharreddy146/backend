@@ -1,52 +1,125 @@
+# import asyncio
+# import logging
+# import traceback
+# import uvicorn
+# import asyncpg
+# import yaml
+# from fastapi import FastAPI
+
+# # FastAPI app initialization
+# app = FastAPI()
+
+# # Load configuration from config.yaml
+# def load_config():
+#     with open("configfile.yml", "r") as file:
+#         return yaml.safe_load(file)
+
+# config = load_config()
+
+# @app.on_event("startup")
+# async def startup_event():
+#     try:
+#         # Use the external URL for Render deployment
+#         db_url = config["database"]["external_url"]
+#         app.state.pool = await asyncpg.create_pool(db_url)
+#         logging.info("Database connected successfully.")
+#     except Exception as e:
+#         logging.error(f"Error during database connection: {e}")
+#         traceback.print_exc()
+
+# @app.on_event("shutdown")
+# async def shutdown_event():
+#     try:
+#         await app.state.pool.close()
+#         logging.info("Database connection closed.")
+#     except Exception as e:
+#         logging.error(f"Error during database shutdown: {e}")
+#         traceback.print_exc()
+
+# # Sample route to verify API
+# @app.get("/")
+# async def root():
+#     return {"message": "Connected to the database!"}
+
+# def run_server():
+#     logging.basicConfig(level=logging.INFO)
+#     try:
+#         uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+#     except KeyboardInterrupt:
+#         print("Shutting down server...")
+
+# if __name__ == "__main__":
+#     run_server()
+
 import asyncio
 import logging
 import traceback
+from fastapi import FastAPI, HTTPException
 import uvicorn
 import asyncpg
-import yaml
-from fastapi import FastAPI
+from pydantic import BaseModel
 
-# FastAPI app initialization
+# Initialize FastAPI app
 app = FastAPI()
 
-# Load configuration from config.yaml
-def load_config():
-    with open("configfile.yml", "r") as file:
-        return yaml.safe_load(file)
+# Database connection configuration
+DATABASE_URL = "postgresql://alco_sales_user:qkto580CDni5cyF0fGk6t3ijjsMlEkQw@dpg-cvv6tuqdbo4c73fgvisg-a.virginia-postgres.render.com/alco_sales"
 
-config = load_config()
+# Define a Pydantic model for login input
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+# Database connection pool
+db_pool = None
+
 
 @app.on_event("startup")
-async def startup_event():
+async def startup():
+    global db_pool
     try:
-        # Use the external URL for Render deployment
-        db_url = config["database"]["external_url"]
-        app.state.pool = await asyncpg.create_pool(db_url)
-        logging.info("Database connected successfully.")
+        db_pool = await asyncpg.create_pool(DATABASE_URL)
+        logging.info("Connected to the database.")
     except Exception as e:
-        logging.error(f"Error during database connection: {e}")
-        traceback.print_exc()
+        logging.error(f"Failed to connect to the database: {str(e)}")
+        raise e
+
 
 @app.on_event("shutdown")
-async def shutdown_event():
-    try:
-        await app.state.pool.close()
+async def shutdown():
+    global db_pool
+    if db_pool:
+        await db_pool.close()
         logging.info("Database connection closed.")
-    except Exception as e:
-        logging.error(f"Error during database shutdown: {e}")
-        traceback.print_exc()
 
-# Sample route to verify API
+
 @app.get("/")
 async def root():
     return {"message": "Connected to the database!"}
 
-def run_server():
-    logging.basicConfig(level=logging.INFO)
+
+@app.post("/login")
+async def login(request: LoginRequest):
+    query = "SELECT * FROM users WHERE username = $1 AND password = $2"
+    async with db_pool.acquire() as conn:
+        result = await conn.fetchrow(query, request.username, request.password)
+        if result:
+            return {"message": "Login successful", "user": dict(result)}
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+
+async def main():
     try:
         uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-    except KeyboardInterrupt:
-        print("Shutting down server...")
+    except Exception:
+        print(traceback.format_exc())
+
 
 if __name__ == "__main__":
-    run_server()
+    logging.basicConfig(level=logging.INFO)
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Application stopped.")
+
