@@ -1,48 +1,30 @@
-import os
-import asyncpg
-import motor.motor_asyncio
-import logging
+version: 1
 
-# Database configurations using environment variables
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", 5432)
-DB_USERNAME = os.getenv("DB_USERNAME")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_NAME = os.getenv("DB_NAME")
+#database:
+#  host: "localhost"
+#  port: "5432"
+#  username: "ZmFpdA=="
+#  password: "RmFpdDIwMjQhIQ=="
+#  name: "dGVzdDU="
 
-MONGO_HOST = os.getenv("MONGO_HOST", "localhost")
-MONGO_PORT = os.getenv("MONGO_PORT", 27017)
-MONGO_USERNAME = os.getenv("MONGO_USERNAME")
-MONGO_PASSWORD = os.getenv("MONGO_PASSWORD")
+  # DATABASE_URL = "postgresql://fait:Fait2024!!@localhost:5432/test5"
+  #  postgresql://[username]:[password]@[host]:[port]/[database]
+  # mongodb://fait_modb:Fait2024!!@localhost:27071/"
 
-# PostgreSQL connection
-async def connect_db():
-    try:
-        connection = await asyncpg.connect(
-            user=DB_USERNAME,
-            password=DB_PASSWORD,
-            database=DB_NAME,
-            host=DB_HOST,
-            port=DB_PORT
-        )
-        logging.info("Successfully connected to PostgreSQL database")
-        return connection
-    except Exception as e:
-        logging.error(f"Error connecting to PostgreSQL: {e}")
-        return None
+mongodb:
+  host: "localhost"
+  port: 27017
+  username: "ZmFpdF9tb2Ri"
+  password: "RmFpdDIwMjQhIQ=="
 
-# MongoDB connection
-async def connect_mongo():
-    try:
-        client = motor.motor_asyncio.AsyncIOMotorClient(
-            MONGO_HOST,
-            username=MONGO_USERNAME,
-            password=MONGO_PASSWORD,
-            port=MONGO_PORT
-        )
-        db = client.get_database(DB_NAME)
-        logging.info("Successfully connected to MongoDB")
-        return db
-    except Exception as e:
-        logging.error(f"Error connecting to MongoDB: {e}")
-        return None
+email:
+  email: "no-reply@firstaitutor.com"
+  password: "secure_password"
+
+database:
+  host: "localhost"
+  port: "5432"
+  username: "cG9zdGdyZXM="
+  password: "QFN1bmVlbDEq"
+  name: "cHJvamVjdA=="
+
