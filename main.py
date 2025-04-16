@@ -3,32 +3,28 @@ import logging
 import traceback
 import uvicorn
 import asyncpg
+import yaml
 from fastapi import FastAPI
-from pydantic import BaseSettings
-
-# Importing models for database setup
-from models import creator
 
 # FastAPI app initialization
 app = FastAPI()
 
-# Configuration class for settings
-class Settings(BaseSettings):
-    database_url: str
+# Load configuration from config.yaml
+def load_config():
+    with open("config.yaml", "r") as file:
+        return yaml.safe_load(file)
 
-    class Config:
-        env_file = ".env"
-
-settings = Settings()
+config = load_config()
 
 @app.on_event("startup")
 async def startup_event():
     try:
-        app.state.pool = await asyncpg.create_pool(settings.database_url)
-        await creator.create_table()
-        logging.info("Database connected and tables created.")
+        # Use the external URL for Render deployment
+        db_url = config["database"]["external_url"]
+        app.state.pool = await asyncpg.create_pool(db_url)
+        logging.info("Database connected successfully.")
     except Exception as e:
-        logging.error(f"Error during startup: {e}")
+        logging.error(f"Error during database connection: {e}")
         traceback.print_exc()
 
 @app.on_event("shutdown")
@@ -37,13 +33,13 @@ async def shutdown_event():
         await app.state.pool.close()
         logging.info("Database connection closed.")
     except Exception as e:
-        logging.error(f"Error during shutdown: {e}")
+        logging.error(f"Error during database shutdown: {e}")
         traceback.print_exc()
 
 # Sample route to verify API
 @app.get("/")
 async def root():
-    return {"message": "Hello from FastAPI!"}
+    return {"message": "Connected to the database!"}
 
 def run_server():
     logging.basicConfig(level=logging.INFO)
