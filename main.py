@@ -11,7 +11,7 @@ app = FastAPI()
 
 # Load configuration from config.yaml
 def load_config():
-    with open("config.yml", "r") as file:
+    with open("configfile.yml", "r") as file:
         return yaml.safe_load(file)
 
 config = load_config()
